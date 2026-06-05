@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5001/api";
+const BASE_URL = "https://fwchackathon.onrender.com/api";
 
 const request = async (endpoint, options = {}) => {
   const token = localStorage.getItem("talentos_token");
