@@ -1,14 +1,23 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+// backend/src/controllers/ai.js
+import Groq from "groq-sdk";
 import Job from "../models/Job.js";
 import User from "../models/User.js";
 import Interview from "../models/Interview.js";
 
-const getGemini = () => {
-  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  return genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+const getGroq = () => new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+// helper — mirrors model.generateContent() return shape
+const generate = async (prompt) => {
+  const groq = getGroq();
+  const res = await groq.chat.completions.create({
+    model: "llama-3.3-70b-versatile",
+    messages: [{ role: "user", content: prompt }],
+    temperature: 0.3,
+  });
+  return res.choices[0].message.content;
 };
 
-// POST /api/ai/rank-candidates/:jobId — HR: rank all applicants for a job
+// POST /api/ai/rank-candidates/:jobId
 export const rankCandidates = async (req, res) => {
   try {
     const job = await Job.findById(req.params.jobId)
@@ -19,8 +28,6 @@ export const rankCandidates = async (req, res) => {
       return res.status(403).json({ success: false, message: "Not your job" });
     if (job.applicants.length === 0)
       return res.status(400).json({ success: false, message: "No applicants yet" });
-
-    const model = getGemini();
 
     const candidateList = job.applicants
       .filter((a) => a.candidate)
@@ -59,11 +66,9 @@ Use the index order to map back to ids: ${candidateList.map((c) => `index ${c.in
 Sort by score descending.
 `;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().replace(/```json|```/g, "").trim();
+    const text = (await generate(prompt)).replace(/```json|```/g, "").trim();
     const rankings = JSON.parse(text);
 
-    // Save AI scores back to job applicants
     for (const rank of rankings) {
       const applicant = job.applicants.find(
         (a) => a.candidate._id.toString() === rank.id
@@ -78,18 +83,17 @@ Sort by score descending.
 
     res.json({ success: true, rankings });
   } catch (err) {
-    console.error("Gemini rank error:", err);
+    console.error("Groq rank error:", err);
     res.status(500).json({ success: false, message: "AI ranking failed: " + err.message });
   }
 };
 
-// POST /api/ai/mock-interview/start — Candidate: generate interview questions
+// POST /api/ai/mock-interview/start
 export const startMockInterview = async (req, res) => {
   try {
     const { jobTitle, skills, jobDescription } = req.body;
     if (!jobTitle) return res.status(400).json({ success: false, message: "jobTitle is required" });
 
-    const model = getGemini();
     const prompt = `
 You are a technical interviewer. Generate 5 interview questions for this role.
 
@@ -103,8 +107,7 @@ Return ONLY a valid JSON array of 5 strings (no markdown, no numbering):
 Mix: 2 technical, 1 problem-solving, 1 behavioral, 1 situational.
 `;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().replace(/```json|```/g, "").trim();
+    const text = (await generate(prompt)).replace(/```json|```/g, "").trim();
     const questions = JSON.parse(text);
 
     res.json({ success: true, questions });
@@ -114,14 +117,13 @@ Mix: 2 technical, 1 problem-solving, 1 behavioral, 1 situational.
   }
 };
 
-// POST /api/ai/mock-interview/evaluate — Candidate: evaluate answers
+// POST /api/ai/mock-interview/evaluate
 export const evaluateMockInterview = async (req, res) => {
   try {
     const { jobTitle, questions, answers } = req.body;
     if (!questions?.length || !answers?.length)
       return res.status(400).json({ success: false, message: "Questions and answers required" });
 
-    const model = getGemini();
     const qa = questions.map((q, i) => `Q${i + 1}: ${q}\nA${i + 1}: ${answers[i] || "No answer"}`).join("\n\n");
 
     const prompt = `
@@ -146,8 +148,7 @@ Return ONLY a valid JSON object (no markdown):
 }
 `;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().replace(/```json|```/g, "").trim();
+    const text = (await generate(prompt)).replace(/```json|```/g, "").trim();
     const evaluation = JSON.parse(text);
 
     res.json({ success: true, evaluation });
@@ -157,11 +158,10 @@ Return ONLY a valid JSON object (no markdown):
   }
 };
 
-// POST /api/ai/profile-review — Candidate: AI reviews their profile
+// POST /api/ai/profile-review
 export const reviewProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
-    const model = getGemini();
 
     const prompt = `
 Review this candidate's profile and give actionable advice.
@@ -180,8 +180,7 @@ Return ONLY valid JSON (no markdown):
 }
 `;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().replace(/```json|```/g, "").trim();
+    const text = (await generate(prompt)).replace(/```json|```/g, "").trim();
     const review = JSON.parse(text);
 
     res.json({ success: true, review });
