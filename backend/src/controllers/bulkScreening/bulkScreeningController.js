@@ -1,10 +1,11 @@
 import multer   from "multer";
 import AdmZip   from "adm-zip";
-import ScreeningSession   from "../../models/bulkScreening/ScreeningSession.js";
-import ScreenedCandidate  from "../../models/bulkScreening/ScreenedCandidate.js";
-import { extractPdfText } from "../../utils/pdfExtractor.js";
-import { parseResume }    from "../../utils/resumeParser.js";
-import { scoreCandidate } from "../../utils/bulkScorer.js";
+import ScreeningSession        from "../../models/bulkScreening/ScreeningSession.js";
+import ScreenedCandidate       from "../../models/bulkScreening/ScreenedCandidate.js";
+import { extractPdfText }      from "../../utils/pdfExtractor.js";
+import { parseResume }         from "../../utils/resumeParser.js";
+import { scoreCandidate }      from "../../utils/bulkScorer.js";
+import { exportCandidatesToExcel } from "../../utils/excelExporter.js";
 
 // ── Multer — memory storage, ZIP only, 50 MB limit ───────────────────────────
 export const upload = multer({
@@ -251,6 +252,32 @@ export const getSessionCandidates = async (req, res) => {
         pages: Math.ceil(total / limitNum),
       },
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── GET /api/bulk-screening/sessions/:id/export ───────────────────────────────
+export const exportSession = async (req, res) => {
+  try {
+    const session = await ScreeningSession.findOne({
+      _id:  req.params.id,
+      hrId: req.user._id,
+    });
+    if (!session)
+      return res.status(404).json({ success: false, message: "Session not found" });
+
+    const candidates = await ScreenedCandidate.find({ sessionId: session._id })
+      .sort({ rank: 1 });
+
+    if (candidates.length === 0)
+      return res.status(400).json({ success: false, message: "No candidates to export" });
+
+    const buffer = exportCandidatesToExcel(candidates);
+
+    res.setHeader("Content-Disposition", `attachment; filename="screening-${session._id}.xlsx"`);
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.send(buffer);
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
