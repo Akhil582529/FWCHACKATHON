@@ -43,7 +43,7 @@ export const scheduleInterview = async (req, res) => {
 export const getHRInterviews = async (req, res) => {
   try {
     const interviews = await Interview.find({ scheduledBy: req.user._id, isMock: false })
-      .populate("candidate", "fullName email")
+      .populate("candidate", "fullName email roleReadinessScore")
       .populate("job", "title company")
       .sort({ scheduledAt: 1 });
     res.json({ success: true, interviews });

@@ -72,6 +72,23 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    onboardingPlan: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    onboardingJobId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Job",
+      default: null,
+    },
+    onboardingGeneratedAt: {
+      type: Date,
+      default: null,
+    },
+    roleReadinessScore: {
+      type: Number,
+      default: null,
+    },
 
     // ── HR-specific ───────────────────────────
     companyId: {
@@ -142,6 +159,10 @@ userSchema.virtual("profile").get(function () {
       skills: this.skills,
       resumeUrl: this.resumeUrl,
       resumeText: this.resumeText,
+      onboardingPlan: this.onboardingPlan,
+      onboardingJobId: this.onboardingJobId,
+      onboardingGeneratedAt: this.onboardingGeneratedAt,
+      roleReadinessScore: this.roleReadinessScore,
     }),
     ...(this.role === "hr" && {
       fullName: this.fullName,

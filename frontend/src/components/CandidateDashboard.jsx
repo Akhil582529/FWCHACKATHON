@@ -38,6 +38,9 @@ function Overview({ user, appliedJobs, interviews, onTabChange }) {
         <StatCard icon="📅" label="Interviews"       value={interviews.length}   color="#a78bfa" />
         <StatCard icon="⭐" label="Profile Skills"   value={user?.skills?.length || 0} color="#f59e0b" />
         <StatCard icon="📄" label="Resume"           value={user?.resumeUrl ? "Uploaded" : "Missing"} color={user?.resumeUrl ? "#22c55e" : "#ef4444"} />
+        {user?.roleReadinessScore != null && (
+          <StatCard icon="🎯" label="Role Readiness" value={`${user.roleReadinessScore}/100`} color="#22c55e" />
+        )}
       </div>
 
       <div className={styles.twoCol}>
@@ -433,6 +436,142 @@ function InterviewTab({ interviews, onRefresh }) {
   );
 }
 
+// ── Onboarding Tab ─────────────────────────────────────────────────────────────
+function OnboardingTab() {
+  const [data, setData]       = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    candidateAPI.getOnboarding()
+      .then((d) => setData(d))
+      .catch(() => setData({ plan: null }))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className={styles.section}><div className={styles.loading}>Loading your onboarding plan...</div></div>;
+
+  if (!data?.plan) return (
+    <div className={styles.section}>
+      <div className={styles.card} style={{ textAlign: "center", padding: "48px 24px" }}>
+        <div style={{ fontSize: 52, marginBottom: 16 }}>🚀</div>
+        <h2 className={styles.cardTitle}>Your Onboarding Plan</h2>
+        <p className={styles.empty}>Your personalized onboarding plan will appear here once you've been selected for a position. Complete your profile and ace your interview to unlock it.</p>
+      </div>
+    </div>
+  );
+
+  const { plan, jobTitle, jobCompany, generatedAt } = data;
+  const readiness = plan.roleReadiness ?? data.roleReadinessScore;
+  const readinessColor = readiness >= 80 ? "#22c55e" : readiness >= 60 ? "#f59e0b" : "#ef4444";
+  const meta = plan.onboardingMeta;
+
+  return (
+    <div className={styles.section}>
+      {/* ── Hero card ── */}
+      <div className={styles.card} style={{ marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
+          <div style={{ flex: 1 }}>
+            <h2 className={styles.sectionTitle} style={{ marginBottom: 4 }}>🚀 {jobTitle || "Your Role"}</h2>
+            <p className={styles.itemSub}>
+              {jobCompany}{generatedAt ? ` · Generated ${new Date(generatedAt).toLocaleDateString()}` : ""}
+            </p>
+            {plan.welcomeMessage && (
+              <p style={{ marginTop: 12, fontSize: 14, color: "var(--text-primary)", lineHeight: 1.7 }}>{plan.welcomeMessage}</p>
+            )}
+          </div>
+          <div style={{ textAlign: "center", minWidth: 110 }}>
+            <div style={{ fontSize: 48, fontWeight: 700, color: readinessColor, fontFamily: "'Syne',sans-serif", lineHeight: 1 }}>{readiness}</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".06em", marginTop: 4 }}>Role Readiness</div>
+          </div>
+        </div>
+
+        {/* Explainability meta */}
+        {meta && (
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 16, paddingTop: 14, borderTop: "1px solid #2d2d2d" }}>
+            {meta.rankingScore      != null && <span className={styles.itemSub}>Ranking <strong style={{ color: "#e2e8f0" }}>{meta.rankingScore}/100</strong></span>}
+            {meta.interviewScore    != null && <span className={styles.itemSub}>Interview <strong style={{ color: "#e2e8f0" }}>{meta.interviewScore}/100</strong></span>}
+            {meta.technicalScore    != null && <span className={styles.itemSub}>Technical <strong style={{ color: "#e2e8f0" }}>{meta.technicalScore}/100</strong></span>}
+            {meta.communicationScore != null && <span className={styles.itemSub}>Comm <strong style={{ color: "#e2e8f0" }}>{meta.communicationScore}/100</strong></span>}
+            {meta.confidenceScore   != null && <span className={styles.itemSub}>Confidence <strong style={{ color: "#e2e8f0" }}>{meta.confidenceScore}/100</strong></span>}
+            {meta.recommendation && (
+              <span className={styles.badge} style={{
+                background: meta.recommendation === "hire" ? "#22c55e22" : "#f59e0b22",
+                color:      meta.recommendation === "hire" ? "#22c55e"   : "#f59e0b",
+              }}>{meta.recommendation.toUpperCase()}</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Day 1 Checklist ── */}
+      {plan.day1Checklist?.length > 0 && (
+        <div className={styles.card} style={{ marginBottom: 16 }}>
+          <div className={styles.cardTitle}>📋 Day 1 Checklist</div>
+          {plan.day1Checklist.map((item, i) => (
+            <div key={i} style={{ display: "flex", gap: 10, padding: "7px 0", borderBottom: "1px solid #1e1e1e", fontSize: 14, color: "var(--text-primary)" }}>
+              <span style={{ color: "var(--cand-accent)", flexShrink: 0 }}>☐</span>
+              <span>{item}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── 30 / 60 / 90 Day Goals ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 16 }}>
+        {[["🎯 30 Days", plan.day30Goals], ["🎯 60 Days", plan.day60Goals], ["🎯 90 Days", plan.day90Goals]].map(([label, goals]) =>
+          goals?.length > 0 && (
+            <div key={label} className={styles.card}>
+              <div className={styles.cardTitle}>{label}</div>
+              {goals.map((g, i) => <div key={i} className={styles.itemSub} style={{ padding: "4px 0" }}>• {g}</div>)}
+            </div>
+          )
+        )}
+      </div>
+
+      {/* ── Skills Roadmap ── */}
+      {plan.skillsToLearn?.length > 0 && (
+        <div className={styles.card} style={{ marginBottom: 16 }}>
+          <div className={styles.cardTitle}>📚 Skills Roadmap</div>
+          {plan.skillsToLearn.map((s, i) => (
+            <div key={i} className={styles.listItem} style={{ padding: "8px 0", borderBottom: "1px solid #1e1e1e" }}>
+              <div>
+                <div style={{ fontSize: 14, color: "var(--text-primary)", fontWeight: 600 }}>{s.skill}</div>
+                {s.resource && <div className={styles.itemSub}>{s.resource}</div>}
+              </div>
+              <span className={styles.badge} style={{
+                background: s.priority === "high" ? "#ef444422" : s.priority === "medium" ? "#f59e0b22" : "#3b82f622",
+                color:      s.priority === "high" ? "#ef4444"   : s.priority === "medium" ? "#f59e0b"   : "#3b82f6",
+              }}>{(s.priority || "medium").toUpperCase()}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Strengths + Growth ── */}
+      <div className={styles.twoCol} style={{ marginBottom: 16 }}>
+        <div className={styles.card}>
+          <div className={styles.cardTitle}>✅ Strengths</div>
+          {plan.strengths?.map((s, i) => <div key={i} className={styles.itemSub} style={{ padding: "4px 0" }}>• {s}</div>)}
+        </div>
+        <div className={styles.card}>
+          <div className={styles.cardTitle}>📈 Areas to Grow</div>
+          {plan.areasToGrow?.map((a, i) => <div key={i} className={styles.itemSub} style={{ padding: "4px 0" }}>• {a}</div>)}
+        </div>
+      </div>
+
+      {/* ── Team Integration Tips ── */}
+      {plan.teamIntegrationTips?.length > 0 && (
+        <div className={styles.card}>
+          <div className={styles.cardTitle}>🤝 Team Integration Tips</div>
+          {plan.teamIntegrationTips.map((tip, i) => (
+            <div key={i} className={styles.itemSub} style={{ padding: "6px 0", borderBottom: "1px solid #1e1e1e" }}>💡 {tip}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Profile Tab ────────────────────────────────────────────────────────────────
 function ProfileTab({ user, onUpdate }) {
   const [fullName, setFullName] = useState(user?.fullName || "");
@@ -520,8 +659,9 @@ export default function CandidateDashboard() {
       {activeTab === "overview"  && <Overview user={user} appliedJobs={appliedJobs} interviews={interviews} onTabChange={setActiveTab} />}
       {activeTab === "jobs"      && <BrowseJobs appliedJobIds={appliedJobIds} />}
       {activeTab === "applied"   && <AppliedJobs jobs={appliedJobs} loading={loadingJobs} />}
-      {activeTab === "interview" && <InterviewTab interviews={interviews} onRefresh={fetchInterviews} />}
-      {activeTab === "profile"   && <ProfileTab user={user} onUpdate={handleUserUpdate} />}
+      {activeTab === "interview"  && <InterviewTab interviews={interviews} onRefresh={fetchInterviews} />}
+      {activeTab === "onboarding" && <OnboardingTab />}
+      {activeTab === "profile"    && <ProfileTab user={user} onUpdate={handleUserUpdate} />}
     </DashboardLayout>
   );
 }

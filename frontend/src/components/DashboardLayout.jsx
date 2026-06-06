@@ -4,11 +4,12 @@ import styles from "./DashboardLayout.module.css";
 
 const navItems = {
   candidate: [
-    { id: "overview",   icon: "⚡", label: "Overview"       },
-    { id: "jobs",       icon: "💼", label: "Browse Jobs"    },
-    { id: "applied",    icon: "📋", label: "Applied Jobs"   },
-    { id: "interview",  icon: "🎤", label: "Mock Interview" },
-    { id: "profile",    icon: "👤", label: "My Profile"     },
+    { id: "overview",    icon: "⚡", label: "Overview"       },
+    { id: "jobs",        icon: "💼", label: "Browse Jobs"    },
+    { id: "applied",     icon: "📋", label: "Applied Jobs"   },
+    { id: "interview",   icon: "🎤", label: "Mock Interview" },
+    { id: "onboarding",  icon: "🚀", label: "Onboarding"    },
+    { id: "profile",     icon: "👤", label: "My Profile"     },
   ],
   hr: [
     { id: "overview",    icon: "⚡", label: "Overview"        },

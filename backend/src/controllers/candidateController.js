@@ -28,3 +28,25 @@ export const getProfile = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+// GET /api/candidate/onboarding — fetch generated onboarding plan
+export const getOnboarding = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id)
+      .populate("onboardingJobId", "title company");
+
+    if (!user.onboardingPlan)
+      return res.json({ success: true, plan: null });
+
+    res.json({
+      success: true,
+      plan:              user.onboardingPlan,
+      jobTitle:          user.onboardingJobId?.title          || null,
+      jobCompany:        user.onboardingJobId?.company        || null,
+      generatedAt:       user.onboardingGeneratedAt,
+      roleReadinessScore: user.roleReadinessScore,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};

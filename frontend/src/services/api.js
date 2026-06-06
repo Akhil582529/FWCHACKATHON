@@ -37,6 +37,7 @@ export const jobsAPI = {
 export const candidateAPI = {
   getProfile:    ()  => request("/candidate/profile"),
   updateProfile: (p) => request("/candidate/profile", { method: "PUT", body: JSON.stringify(p) }),
+  getOnboarding: ()  => request("/candidate/onboarding"),
 };
 
 export const interviewAPI = {

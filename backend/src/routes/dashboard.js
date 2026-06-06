@@ -5,7 +5,7 @@ import {
   applyToJob, getAppliedJobs, adminGetAllJobs, toggleJobStatus,
 } from "../controllers/jobController.js";
 import { rankCandidates, startMockInterview, evaluateMockInterview, reviewProfile, generateInterviewQuestions, evaluateInterview } from "../controllers/aiController.js";
-import { updateProfile, getProfile } from "../controllers/candidateController.js";
+import { updateProfile, getProfile, getOnboarding } from "../controllers/candidateController.js";
 import { scheduleInterview, getHRInterviews, getCandidateInterviews, updateInterviewStatus, submitAnswers } from "../controllers/interviewController.js";
 import { getAllUsers, toggleUserStatus, getAnalytics } from "../controllers/adminController.js";
 
@@ -20,8 +20,9 @@ router.delete("/jobs/:id",    protect, restrictTo("hr"), deleteJob);
 router.post("/jobs/:id/apply",protect, restrictTo("candidate"), applyToJob);
 
 // ── Candidate ─────────────────────────────────────────────────────────────────
-router.get("/candidate/profile",  protect, restrictTo("candidate"), getProfile);
-router.put("/candidate/profile",  protect, restrictTo("candidate"), updateProfile);
+router.get("/candidate/profile",    protect, restrictTo("candidate"), getProfile);
+router.put("/candidate/profile",    protect, restrictTo("candidate"), updateProfile);
+router.get("/candidate/onboarding", protect, restrictTo("candidate"), getOnboarding);
 
 // ── Interviews ────────────────────────────────────────────────────────────────
 router.post("/interviews",                protect, restrictTo("hr"),        scheduleInterview);
