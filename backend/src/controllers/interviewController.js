@@ -18,6 +18,11 @@ export const scheduleInterview = async (req, res) => {
       notes: notes || null,
     });
 
+    if ((mode === "online" || !mode) && !meetLink) {
+      interview.meetLink = `https://meet.jit.si/talentos-${interview._id}`;
+      await interview.save();
+    }
+
     // Update applicant status to shortlisted
     await Job.updateOne(
       { _id: jobId, "applicants.candidate": candidateId },
@@ -71,6 +76,26 @@ export const updateInterviewStatus = async (req, res) => {
     ).populate("candidate", "fullName email").populate("job", "title");
     if (!interview) return res.status(404).json({ success: false, message: "Interview not found" });
     res.json({ success: true, interview });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// PATCH /api/interviews/:id/answers — candidate: submit written answers
+export const submitAnswers = async (req, res) => {
+  try {
+    const { answers } = req.body;
+    if (!Array.isArray(answers) || answers.length === 0)
+      return res.status(400).json({ success: false, message: "answers array is required" });
+
+    const interview = await Interview.findById(req.params.id);
+    if (!interview) return res.status(404).json({ success: false, message: "Interview not found" });
+    if (interview.candidate.toString() !== req.user._id.toString())
+      return res.status(403).json({ success: false, message: "Not your interview" });
+
+    interview.mockAnswers = answers;
+    await interview.save();
+    res.json({ success: true, message: "Answers saved", interview });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

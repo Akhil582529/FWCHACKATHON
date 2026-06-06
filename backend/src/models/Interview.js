@@ -16,6 +16,11 @@ const interviewSchema = new mongoose.Schema(
     mockAnswers: { type: [String], default: [] },
     mockFeedback: { type: String, default: null },
     mockScore: { type: Number, default: null },
+    // AI evaluation breakdown
+    technicalScore:      { type: Number, default: null },
+    communicationScore:  { type: Number, default: null },
+    confidenceScore:     { type: Number, default: null },
+    recommendation:      { type: String, default: null },
   },
   { timestamps: true }
 );

@@ -300,6 +300,139 @@ function MockInterview() {
   );
 }
 
+// ── Interview Tab ──────────────────────────────────────────────────────────────
+function InterviewTab({ interviews, onRefresh }) {
+  const [generatingFor, setGeneratingFor] = useState(null);
+  const [submittingFor, setSubmittingFor] = useState(null);
+  const [draftAnswers, setDraftAnswers]   = useState({});
+
+  const generateQuestions = async (id) => {
+    setGeneratingFor(id);
+    try { await aiAPI.generateInterviewQuestions(id); onRefresh(); }
+    catch (e) { alert(e.message); }
+    finally { setGeneratingFor(null); }
+  };
+
+  const submitAnswers = async (id, questionCount) => {
+    const answers = draftAnswers[id] || new Array(questionCount).fill("");
+    setSubmittingFor(id);
+    try { await interviewAPI.submitAnswers(id, answers); onRefresh(); }
+    catch (e) { alert(e.message); }
+    finally { setSubmittingFor(null); }
+  };
+
+  const setAnswer = (interviewId, index, value, questionCount) => {
+    setDraftAnswers((prev) => {
+      const arr = [...(prev[interviewId] || new Array(questionCount).fill(""))];
+      arr[index] = value;
+      return { ...prev, [interviewId]: arr };
+    });
+  };
+
+  const recColor = { hire: "#22c55e", consider: "#f59e0b", pass: "#ef4444" };
+
+  return (
+    <div className={styles.section}>
+      <h2 className={styles.sectionTitle}>My Scheduled Interviews</h2>
+
+      {interviews.length === 0 ? (
+        <p className={styles.empty}>No interviews scheduled yet.</p>
+      ) : (
+        interviews.map((iv) => (
+          <div key={iv._id} className={styles.card} style={{ marginBottom: 16 }}>
+            {/* Header row */}
+            <div className={styles.listItem}>
+              <div>
+                <div className={styles.itemTitle}>{iv.job?.title} — {iv.job?.company}</div>
+                <div className={styles.itemSub}>
+                  {new Date(iv.scheduledAt).toLocaleString()} · {iv.mode}
+                </div>
+                {iv.meetLink && (
+                  <a href={iv.meetLink} target="_blank" rel="noreferrer" className={styles.inlineBtn}>
+                    Join Video Call →
+                  </a>
+                )}
+              </div>
+              <span className={styles.badge} style={{
+                background: iv.status === "completed" ? "#22c55e22" : iv.status === "cancelled" ? "#ef444422" : "#3b82f622",
+                color:      iv.status === "completed" ? "#22c55e"   : iv.status === "cancelled" ? "#ef4444"   : "#3b82f6",
+              }}>{iv.status}</span>
+            </div>
+
+            {/* Score display (after evaluation) */}
+            {iv.mockScore != null && (
+              <div style={{ marginTop: 12, padding: "12px 0", borderTop: "1px solid #2d2d2d" }}>
+                <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 8 }}>
+                  <span className={styles.itemSub}>Overall <strong style={{ color: "#e2e8f0" }}>{iv.mockScore}/100</strong></span>
+                  {iv.technicalScore     != null && <span className={styles.itemSub}>Technical <strong style={{ color: "#e2e8f0" }}>{iv.technicalScore}/100</strong></span>}
+                  {iv.communicationScore != null && <span className={styles.itemSub}>Communication <strong style={{ color: "#e2e8f0" }}>{iv.communicationScore}/100</strong></span>}
+                  {iv.confidenceScore    != null && <span className={styles.itemSub}>Confidence <strong style={{ color: "#e2e8f0" }}>{iv.confidenceScore}/100</strong></span>}
+                  {iv.recommendation && (
+                    <span className={styles.badge} style={{ color: recColor[iv.recommendation] || "#e2e8f0" }}>
+                      {iv.recommendation.toUpperCase()}
+                    </span>
+                  )}
+                </div>
+                {iv.mockFeedback && <p className={styles.itemSub}>{iv.mockFeedback}</p>}
+              </div>
+            )}
+
+            {/* Questions / answers section */}
+            {iv.mockQuestions.length === 0 ? (
+              <button
+                className={styles.aiBtn}
+                style={{ marginTop: 12 }}
+                onClick={() => generateQuestions(iv._id)}
+                disabled={generatingFor === iv._id}
+              >
+                {generatingFor === iv._id ? "Generating..." : "✨ Generate Interview Questions"}
+              </button>
+            ) : iv.mockAnswers.length === 0 ? (
+              <div style={{ marginTop: 12 }}>
+                <div className={styles.cardTitle}>Answer the Questions</div>
+                {iv.mockQuestions.map((q, i) => (
+                  <div key={i} className={styles.formGroup}>
+                    <label className={styles.label}>Q{i + 1}: {q}</label>
+                    <textarea
+                      className={styles.answerBox}
+                      rows={3}
+                      placeholder="Type your answer..."
+                      value={(draftAnswers[iv._id] || [])[i] || ""}
+                      onChange={(e) => setAnswer(iv._id, i, e.target.value, iv.mockQuestions.length)}
+                    />
+                  </div>
+                ))}
+                <button
+                  className={styles.primaryBtn}
+                  onClick={() => submitAnswers(iv._id, iv.mockQuestions.length)}
+                  disabled={submittingFor === iv._id}
+                >
+                  {submittingFor === iv._id ? "Saving..." : "Submit Answers"}
+                </button>
+              </div>
+            ) : (
+              <div style={{ marginTop: 12 }}>
+                <div className={styles.cardTitle}>Submitted Answers</div>
+                {iv.mockQuestions.map((q, i) => (
+                  <div key={i} className={styles.qFeedback}>
+                    <div className={styles.qFeedbackHeader}><span>Q{i + 1}: {q}</span></div>
+                    <p className={styles.qFeedbackText}>{iv.mockAnswers[i] || "—"}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))
+      )}
+
+      <div style={{ margin: "32px 0 16px", borderTop: "1px solid #2d2d2d", paddingTop: 24 }}>
+        <h2 className={styles.sectionTitle}>🎤 Mock Interview Practice</h2>
+      </div>
+      <MockInterview />
+    </div>
+  );
+}
+
 // ── Profile Tab ────────────────────────────────────────────────────────────────
 function ProfileTab({ user, onUpdate }) {
   const [fullName, setFullName] = useState(user?.fullName || "");
@@ -368,9 +501,11 @@ export default function CandidateDashboard() {
   const [interviews, setInterviews] = useState([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
 
+  const fetchInterviews = () => interviewAPI.getCandidate().then((d) => setInterviews(d.interviews));
+
   useEffect(() => {
     jobsAPI.getApplied().then((d) => setAppliedJobs(d.jobs)).finally(() => setLoadingJobs(false));
-    interviewAPI.getCandidate().then((d) => setInterviews(d.interviews));
+    fetchInterviews();
   }, []);
 
   const appliedJobIds = appliedJobs.map((j) => j._id);
@@ -385,7 +520,7 @@ export default function CandidateDashboard() {
       {activeTab === "overview"  && <Overview user={user} appliedJobs={appliedJobs} interviews={interviews} onTabChange={setActiveTab} />}
       {activeTab === "jobs"      && <BrowseJobs appliedJobIds={appliedJobIds} />}
       {activeTab === "applied"   && <AppliedJobs jobs={appliedJobs} loading={loadingJobs} />}
-      {activeTab === "interview" && <MockInterview />}
+      {activeTab === "interview" && <InterviewTab interviews={interviews} onRefresh={fetchInterviews} />}
       {activeTab === "profile"   && <ProfileTab user={user} onUpdate={handleUserUpdate} />}
     </DashboardLayout>
   );

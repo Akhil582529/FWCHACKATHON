@@ -4,9 +4,9 @@ import {
   getAllJobs, getMyJobs, createJob, deleteJob,
   applyToJob, getAppliedJobs, adminGetAllJobs, toggleJobStatus,
 } from "../controllers/jobController.js";
-import { rankCandidates, startMockInterview, evaluateMockInterview, reviewProfile } from "../controllers/aiController.js";
+import { rankCandidates, startMockInterview, evaluateMockInterview, reviewProfile, generateInterviewQuestions, evaluateInterview } from "../controllers/aiController.js";
 import { updateProfile, getProfile } from "../controllers/candidateController.js";
-import { scheduleInterview, getHRInterviews, getCandidateInterviews, updateInterviewStatus } from "../controllers/interviewController.js";
+import { scheduleInterview, getHRInterviews, getCandidateInterviews, updateInterviewStatus, submitAnswers } from "../controllers/interviewController.js";
 import { getAllUsers, toggleUserStatus, getAnalytics } from "../controllers/adminController.js";
 
 const router = Router();
@@ -24,16 +24,19 @@ router.get("/candidate/profile",  protect, restrictTo("candidate"), getProfile);
 router.put("/candidate/profile",  protect, restrictTo("candidate"), updateProfile);
 
 // ── Interviews ────────────────────────────────────────────────────────────────
-router.post("/interviews",              protect, restrictTo("hr"), scheduleInterview);
-router.get("/interviews/hr",            protect, restrictTo("hr"), getHRInterviews);
-router.get("/interviews/candidate",     protect, restrictTo("candidate"), getCandidateInterviews);
-router.patch("/interviews/:id/status",  protect, restrictTo("hr"), updateInterviewStatus);
+router.post("/interviews",                protect, restrictTo("hr"),        scheduleInterview);
+router.get("/interviews/hr",             protect, restrictTo("hr"),        getHRInterviews);
+router.get("/interviews/candidate",      protect, restrictTo("candidate"), getCandidateInterviews);
+router.patch("/interviews/:id/status",   protect, restrictTo("hr"),        updateInterviewStatus);
+router.patch("/interviews/:id/answers",  protect, restrictTo("candidate"), submitAnswers);
 
 // ── AI / Gemini ───────────────────────────────────────────────────────────────
-router.post("/ai/rank-candidates/:jobId", protect, restrictTo("hr"), rankCandidates);
-router.post("/ai/mock-interview/start",   protect, restrictTo("candidate"), startMockInterview);
-router.post("/ai/mock-interview/evaluate",protect, restrictTo("candidate"), evaluateMockInterview);
-router.post("/ai/profile-review",         protect, restrictTo("candidate"), reviewProfile);
+router.post("/ai/rank-candidates/:jobId",    protect, restrictTo("hr"),        rankCandidates);
+router.post("/ai/mock-interview/start",     protect, restrictTo("candidate"), startMockInterview);
+router.post("/ai/mock-interview/evaluate",  protect, restrictTo("candidate"), evaluateMockInterview);
+router.post("/ai/profile-review",           protect, restrictTo("candidate"), reviewProfile);
+router.post("/ai/interview-questions/:id",  protect, restrictTo("candidate"), generateInterviewQuestions);
+router.post("/ai/evaluate-interview/:id",   protect, restrictTo("hr"),        evaluateInterview);
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
 router.get("/admin/users",            protect, restrictTo("admin"), getAllUsers);

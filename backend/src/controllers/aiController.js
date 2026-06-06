@@ -192,3 +192,111 @@ Return ONLY valid JSON (no markdown):
     res.status(500).json({ success: false, message: "Profile review failed: " + err.message });
   }
 };
+
+// POST /api/ai/interview-questions/:id — candidate: generate questions for a scheduled interview
+export const generateInterviewQuestions = async (req, res) => {
+  try {
+    const interview = await Interview.findById(req.params.id)
+      .populate("job", "title skills description");
+
+    if (!interview) return res.status(404).json({ success: false, message: "Interview not found" });
+    if (interview.candidate.toString() !== req.user._id.toString())
+      return res.status(403).json({ success: false, message: "Not your interview" });
+
+    // Return existing questions without calling Gemini again
+    if (interview.mockQuestions.length > 0)
+      return res.json({ success: true, questions: interview.mockQuestions });
+
+    const model = getGemini();
+    const prompt = `
+You are a technical interviewer. Generate 5 interview questions for this role.
+
+Role: ${interview.job.title}
+Required Skills: ${interview.job.skills?.join(", ") || "General skills"}
+Description: ${interview.job.description}
+
+Return ONLY a valid JSON array of 5 strings (no markdown, no numbering):
+["question1", "question2", "question3", "question4", "question5"]
+
+Mix: 2 technical, 1 problem-solving, 1 behavioral, 1 situational.
+`;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().replace(/```json|```/g, "").trim();
+    const questions = JSON.parse(text);
+
+    interview.mockQuestions = questions;
+    await interview.save();
+
+    res.json({ success: true, questions });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Failed to generate questions: " + err.message });
+  }
+};
+
+// POST /api/ai/evaluate-interview/:id — HR: AI evaluate a completed interview
+export const evaluateInterview = async (req, res) => {
+  try {
+    const interview = await Interview.findById(req.params.id)
+      .populate("candidate", "fullName email resumeText")
+      .populate("job", "title description skills requirements");
+
+    if (!interview) return res.status(404).json({ success: false, message: "Interview not found" });
+    if (interview.scheduledBy.toString() !== req.user._id.toString())
+      return res.status(403).json({ success: false, message: "Not your interview" });
+
+    const model = getGemini();
+    const { candidate, job } = interview;
+
+    const hasAnswers = interview.mockAnswers.length > 0;
+    const qa = hasAnswers
+      ? interview.mockQuestions.map((q, i) =>
+          `Q${i + 1}: ${q}\nA${i + 1}: ${interview.mockAnswers[i] || "No answer"}`
+        ).join("\n\n")
+      : null;
+
+    const prompt = `
+You are a senior technical interviewer evaluating a real job interview.
+
+POSITION: ${job.title}
+REQUIRED SKILLS: ${job.skills?.join(", ") || "Not specified"}
+REQUIREMENTS: ${job.requirements?.join(", ") || "Not specified"}
+JOB DESCRIPTION: ${job.description}
+
+CANDIDATE RESUME:
+${candidate.resumeText ? candidate.resumeText.slice(0, 2000) : "Not provided — evaluate based on interview answers only"}
+
+INTERVIEW Q&A:
+${hasAnswers ? qa : "Candidate did not submit written answers — evaluate based on resume and job fit only"}
+
+Return ONLY valid JSON (no markdown):
+{
+  "overallScore": <0-100>,
+  "technicalScore": <0-100>,
+  "communicationScore": <0-100>,
+  "confidenceScore": <0-100>,
+  "recommendation": "<hire/consider/pass>",
+  "summary": "<3-4 sentence overall assessment>",
+  "strengths": ["strength1", "strength2"],
+  "improvements": ["improvement1", "improvement2"]
+}
+`;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().replace(/```json|```/g, "").trim();
+    const evaluation = JSON.parse(text);
+
+    interview.mockScore          = evaluation.overallScore;
+    interview.mockFeedback       = evaluation.summary;
+    interview.technicalScore     = evaluation.technicalScore;
+    interview.communicationScore = evaluation.communicationScore;
+    interview.confidenceScore    = evaluation.confidenceScore;
+    interview.recommendation     = evaluation.recommendation;
+    await interview.save();
+
+    res.json({ success: true, evaluation });
+  } catch (err) {
+    console.error("Interview evaluation error:", err);
+    res.status(500).json({ success: false, message: "Evaluation failed: " + err.message });
+  }
+};

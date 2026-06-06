@@ -200,9 +200,11 @@ function Candidates({ jobs }) {
 }
 
 // ── Schedule Interviews ───────────────────────────────────────────────────────
-function Interviews({ interviews, jobs, onScheduled }) {
+function Interviews({ interviews, jobs, onScheduled, onRefresh }) {
   const [form, setForm] = useState({ candidateId: "", jobId: "", scheduledAt: "", mode: "online", meetLink: "", notes: "" });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading]     = useState(false);
+  const [updating, setUpdating]   = useState(null);
+  const [evaluating, setEvaluating] = useState(null);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const allCandidates = jobs.flatMap((j) =>
@@ -216,6 +218,23 @@ function Interviews({ interviews, jobs, onScheduled }) {
     catch (e) { alert(e.message); }
     finally { setLoading(false); }
   };
+
+  const updateStatus = async (id, status) => {
+    setUpdating(id);
+    try { await interviewAPI.updateStatus(id, status); onRefresh(); }
+    catch (e) { alert(e.message); }
+    finally { setUpdating(null); }
+  };
+
+  const evaluate = async (id) => {
+    setEvaluating(id);
+    try { await aiAPI.evaluateInterview(id); onRefresh(); }
+    catch (e) { alert(e.message); }
+    finally { setEvaluating(null); }
+  };
+
+  const statusColor = (s) => s === "completed" ? { bg: "#22c55e22", fg: "#22c55e" } : s === "cancelled" ? { bg: "#ef444422", fg: "#ef4444" } : { bg: "#3b82f622", fg: "#3b82f6" };
+  const recColor = { hire: "#22c55e", consider: "#f59e0b", pass: "#ef4444" };
 
   return (
     <div className={styles.section}>
@@ -247,24 +266,69 @@ function Interviews({ interviews, jobs, onScheduled }) {
             </select>
           </div>
           <div className={styles.formGroup}>
-            <label className={styles.label}>Meet Link</label>
-            <input className={styles.input} placeholder="https://meet.google.com/..." value={form.meetLink} onChange={(e) => set("meetLink", e.target.value)} />
+            <label className={styles.label}>Meet Link <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>(auto-generated for online)</span></label>
+            <input className={styles.input} placeholder="Leave blank to auto-generate Jitsi link" value={form.meetLink} onChange={(e) => set("meetLink", e.target.value)} />
           </div>
           <button className={styles.primaryBtn} onClick={submit} disabled={loading}>{loading ? "Scheduling..." : "Schedule Interview"}</button>
         </div>
-        <div className={styles.card}>
+
+        <div className={styles.card} style={{ overflowY: "auto", maxHeight: 580 }}>
           <h3 className={styles.cardTitle}>Scheduled Interviews</h3>
           {interviews.length === 0 ? <p className={styles.empty}>No interviews yet.</p>
-            : interviews.map((iv) => (
-              <div key={iv._id} className={styles.listItem}>
-                <div>
-                  <div className={styles.itemTitle}>{iv.candidate?.fullName || iv.candidate?.email}</div>
-                  <div className={styles.itemSub}>{iv.job?.title} · {new Date(iv.scheduledAt).toLocaleString()}</div>
-                  <div className={styles.itemSub}>{iv.mode} {iv.meetLink && <a href={iv.meetLink} target="_blank" rel="noreferrer" className={styles.inlineBtn}>Join →</a>}</div>
+            : interviews.map((iv) => {
+              const sc = statusColor(iv.status);
+              const isBusy = updating === iv._id || evaluating === iv._id;
+              return (
+                <div key={iv._id} style={{ borderBottom: "1px solid #2d2d2d", paddingBottom: 14, marginBottom: 14 }}>
+                  <div className={styles.listItem} style={{ alignItems: "flex-start" }}>
+                    <div style={{ flex: 1 }}>
+                      <div className={styles.itemTitle}>{iv.candidate?.fullName || iv.candidate?.email}</div>
+                      <div className={styles.itemSub}>{iv.job?.title} · {new Date(iv.scheduledAt).toLocaleString()}</div>
+                      <div className={styles.itemSub}>
+                        {iv.mode}
+                        {iv.meetLink && <a href={iv.meetLink} target="_blank" rel="noreferrer" className={styles.inlineBtn} style={{ marginLeft: 8 }}>Join →</a>}
+                      </div>
+                    </div>
+                    <span className={styles.badge} style={{ background: sc.bg, color: sc.fg }}>{iv.status}</span>
+                  </div>
+
+                  {/* Score display */}
+                  {iv.mockScore != null && (
+                    <div style={{ marginTop: 8, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                      <span className={styles.itemSub}>Overall <strong style={{ color: "#e2e8f0" }}>{iv.mockScore}/100</strong></span>
+                      {iv.technicalScore     != null && <span className={styles.itemSub}>Tech <strong style={{ color: "#e2e8f0" }}>{iv.technicalScore}/100</strong></span>}
+                      {iv.communicationScore != null && <span className={styles.itemSub}>Comm <strong style={{ color: "#e2e8f0" }}>{iv.communicationScore}/100</strong></span>}
+                      {iv.confidenceScore    != null && <span className={styles.itemSub}>Conf <strong style={{ color: "#e2e8f0" }}>{iv.confidenceScore}/100</strong></span>}
+                      {iv.recommendation && (
+                        <span className={styles.badge} style={{ color: recColor[iv.recommendation] || "#e2e8f0" }}>
+                          {iv.recommendation.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {iv.mockFeedback && <p className={styles.itemSub} style={{ marginTop: 6, fontStyle: "italic" }}>{iv.mockFeedback}</p>}
+
+                  {/* Action buttons */}
+                  <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                    {iv.status === "scheduled" && (
+                      <>
+                        <button className={styles.successBtn} onClick={() => updateStatus(iv._id, "completed")} disabled={isBusy}>
+                          {updating === iv._id ? "..." : "Complete"}
+                        </button>
+                        <button className={styles.dangerBtn} onClick={() => updateStatus(iv._id, "cancelled")} disabled={isBusy}>
+                          {updating === iv._id ? "..." : "Cancel"}
+                        </button>
+                      </>
+                    )}
+                    {iv.status === "completed" && iv.mockScore == null && (
+                      <button className={styles.aiBtn} onClick={() => evaluate(iv._id)} disabled={isBusy}>
+                        {evaluating === iv._id ? "Evaluating..." : "✨ AI Evaluate"}
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <span className={`${styles.badge} ${styles[iv.status]}`}>{iv.status}</span>
-              </div>
-            ))
+              );
+            })
           }
         </div>
       </div>
@@ -364,7 +428,7 @@ export default function HRDashboard() {
       {activeTab === "post-job"   && <PostJob onPosted={fetchJobs} />}
       {activeTab === "my-jobs"    && <MyJobs jobs={jobs} loading={loadingJobs} onDelete={deleteJob} onTabChange={setActiveTab} />}
       {activeTab === "candidates" && <Candidates jobs={jobs} />}
-      {activeTab === "interviews" && <Interviews interviews={interviews} jobs={jobs} onScheduled={fetchInterviews} />}
+      {activeTab === "interviews" && <Interviews interviews={interviews} jobs={jobs} onScheduled={fetchInterviews} onRefresh={fetchInterviews} />}
       {activeTab === "ai-ranking" && <AIRanking jobs={jobs} />}
     </DashboardLayout>
   );
