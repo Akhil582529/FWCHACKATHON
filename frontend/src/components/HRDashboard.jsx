@@ -3,6 +3,7 @@ import DashboardLayout from "./DashboardLayout";
 import { jobsAPI, interviewAPI, aiAPI } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import styles from "./HRDashboard.module.css";
+import BulkScreening from "./BulkScreening";
 
 function StatCard({ icon, label, value, color }) {
   return (
@@ -432,7 +433,8 @@ export default function HRDashboard() {
       {activeTab === "my-jobs"    && <MyJobs jobs={jobs} loading={loadingJobs} onDelete={deleteJob} onTabChange={setActiveTab} />}
       {activeTab === "candidates" && <Candidates jobs={jobs} />}
       {activeTab === "interviews" && <Interviews interviews={interviews} jobs={jobs} onScheduled={fetchInterviews} onRefresh={fetchInterviews} />}
-      {activeTab === "ai-ranking" && <AIRanking jobs={jobs} />}
+      {activeTab === "ai-ranking"     && <AIRanking jobs={jobs} />}
+      {activeTab === "bulk-screening" && <BulkScreening />}
     </DashboardLayout>
   );
 }

@@ -67,6 +67,50 @@ export const adminAPI = {
   getAIInsights: (metrics)     => request("/admin/ai-insights",        { method: "POST", body: JSON.stringify({ metrics }) }),
 };
 
+// multipart helper — omits Content-Type so browser sets boundary automatically
+const multipartRequest = async (endpoint, formData) => {
+  const token = localStorage.getItem("talentos_token");
+  const res = await fetch(`${BASE_URL}${endpoint}`, {
+    method: "POST",
+    headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+    body: formData,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || "Something went wrong");
+  return data;
+};
+
+// blob helper — used for Excel export download
+const downloadRequest = async (endpoint) => {
+  const token = localStorage.getItem("talentos_token");
+  const res = await fetch(`${BASE_URL}${endpoint}`, {
+    headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.message || "Export failed");
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get("Content-Disposition") || "";
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  const filename = match ? match[1] : "screening-export.xlsx";
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+};
+
+export const bulkScreeningAPI = {
+  createSession:         (formData)       => multipartRequest("/bulk-screening/sessions", formData),
+  getSessions:           ()               => request("/bulk-screening/sessions"),
+  getSession:            (id)             => request(`/bulk-screening/sessions/${id}`),
+  getCandidates:         (id, query = "") => request(`/bulk-screening/sessions/${id}/candidates${query}`),
+  updateCandidateStatus: (id, status)     => request(`/bulk-screening/candidates/${id}/status`, {
+                                              method: "PATCH", body: JSON.stringify({ status }),
+                                            }),
+  exportSession:         (id)             => downloadRequest(`/bulk-screening/sessions/${id}/export`),
+};
+
 export const saveToken  = (t) => localStorage.setItem("talentos_token", t);
 export const clearToken = ()  => localStorage.removeItem("talentos_token");
 export const getToken   = ()  => localStorage.getItem("talentos_token");
