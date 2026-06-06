@@ -58,11 +58,13 @@ export const aiAPI = {
 };
 
 export const adminAPI = {
-  getUsers:     (params = "") => request(`/admin/users${params}`),
-  toggleUser:   (id)          => request(`/admin/users/${id}/toggle`, { method: "PATCH" }),
-  getAnalytics: ()            => request("/admin/analytics"),
-  getAllJobs:    ()            => request("/admin/jobs"),
-  toggleJob:    (id)          => request(`/admin/jobs/${id}/toggle`,  { method: "PATCH" }),
+  getUsers:      (params = "") => request(`/admin/users${params}`),
+  toggleUser:    (id)          => request(`/admin/users/${id}/toggle`, { method: "PATCH" }),
+  getAnalytics:  ()            => request("/admin/analytics"),
+  getAllJobs:     ()            => request("/admin/jobs"),
+  toggleJob:     (id)          => request(`/admin/jobs/${id}/toggle`,  { method: "PATCH" }),
+  getWorkforce:  ()            => request("/admin/workforce"),
+  getAIInsights: (metrics)     => request("/admin/ai-insights",        { method: "POST", body: JSON.stringify({ metrics }) }),
 };
 
 export const saveToken  = (t) => localStorage.setItem("talentos_token", t);

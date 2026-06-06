@@ -7,7 +7,7 @@ import {
 import { rankCandidates, startMockInterview, evaluateMockInterview, reviewProfile, generateInterviewQuestions, evaluateInterview } from "../controllers/aiController.js";
 import { updateProfile, getProfile, getOnboarding } from "../controllers/candidateController.js";
 import { scheduleInterview, getHRInterviews, getCandidateInterviews, updateInterviewStatus, submitAnswers } from "../controllers/interviewController.js";
-import { getAllUsers, toggleUserStatus, getAnalytics } from "../controllers/adminController.js";
+import { getAllUsers, toggleUserStatus, getAnalytics, getWorkforceAnalytics, getAIInsights } from "../controllers/adminController.js";
 
 const router = Router();
 
@@ -44,6 +44,8 @@ router.get("/admin/users",            protect, restrictTo("admin"), getAllUsers)
 router.patch("/admin/users/:id/toggle",protect, restrictTo("admin"), toggleUserStatus);
 router.get("/admin/analytics",        protect, restrictTo("admin"), getAnalytics);
 router.get("/admin/jobs",             protect, restrictTo("admin"), adminGetAllJobs);
-router.patch("/admin/jobs/:id/toggle",protect, restrictTo("admin"), toggleJobStatus);
+router.patch("/admin/jobs/:id/toggle",  protect, restrictTo("admin"), toggleJobStatus);
+router.get("/admin/workforce",          protect, restrictTo("admin"), getWorkforceAnalytics);
+router.post("/admin/ai-insights",       protect, restrictTo("admin"), getAIInsights);
 
 export default router;
