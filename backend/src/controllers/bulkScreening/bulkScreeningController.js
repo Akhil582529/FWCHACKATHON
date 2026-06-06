@@ -63,6 +63,7 @@ export const createSession = async (req, res) => {
     }
 
     const job = {
+      title:        jobTitle,
       skills:       skillsArr,
       requirements: reqsArr,
       description:  jobDescription,
@@ -89,12 +90,36 @@ export const createSession = async (req, res) => {
           phone:      parsed.phone,
           skills:     parsed.skills,
           resumeText,
+          // Fix 1: persist extracted signals
+          extractedExperienceYears: parsed.extractedExperienceYears,
+          extractedEducation:       parsed.extractedEducation,
+          extractedCertifications:  parsed.extractedCertifications,
+          extractedIndustries:      parsed.extractedIndustries,
+          extractedTitles:          parsed.extractedTitles,
+          projectCount:             parsed.projectCount,
+          achievementCount:         parsed.achievementCount,
+          estimatedJobCount:        parsed.estimatedJobCount,
+          hasLeadership:            parsed.hasLeadership,
+          // Fix 2: persist all 14 individual factor scores
           scores: {
-            skillMatch:       breakdown.skillMatch,
-            requirementMatch: breakdown.requirementMatch,
-            completeness:     breakdown.completeness,
-            keywordRelevance: breakdown.keywordRelevance,
-            total:            score,
+            skillMatch:             breakdown.skillMatch,
+            requirementMatch:       breakdown.requirementMatch,
+            completeness:           breakdown.completeness,
+            keywordRelevance:       breakdown.keywordRelevance,
+            relevantExperience:     breakdown.relevantExperience,
+            educationQualification: breakdown.educationQualification,
+            certifications:         breakdown.certifications,
+            industryExperience:     breakdown.industryExperience,
+            projectExperience:      breakdown.projectExperience,
+            technicalCompetency:    breakdown.technicalCompetency,
+            domainKnowledge:        breakdown.domainKnowledge,
+            roleRelevance:          breakdown.roleRelevance,
+            achievementsImpact:     breakdown.achievementsImpact,
+            careerStability:        breakdown.careerStability,
+            communicationQuality:   breakdown.communicationQuality,
+            leadershipExperience:   breakdown.leadershipExperience,
+            learningAgility:        breakdown.learningAgility,
+            total:                  score,
           },
           recommendation,
           summary,
@@ -252,6 +277,39 @@ export const getSessionCandidates = async (req, res) => {
         pages: Math.ceil(total / limitNum),
       },
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ── PATCH /api/bulk-screening/candidates/:id/status ──────────────────────────
+export const updateCandidateStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const ALLOWED = ["pending", "shortlisted", "rejected"];
+
+    if (!status || !ALLOWED.includes(status))
+      return res.status(400).json({
+        success: false,
+        message: `Invalid status. Allowed values: ${ALLOWED.join(", ")}`,
+      });
+
+    const candidate = await ScreenedCandidate.findById(req.params.id);
+    if (!candidate)
+      return res.status(404).json({ success: false, message: "Candidate not found" });
+
+    // Verify the candidate's session belongs to this HR user
+    const session = await ScreeningSession.findOne({
+      _id:  candidate.sessionId,
+      hrId: req.user._id,
+    });
+    if (!session)
+      return res.status(404).json({ success: false, message: "Candidate not found" });
+
+    candidate.status = status;
+    await candidate.save();
+
+    res.json({ success: true, candidate });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
