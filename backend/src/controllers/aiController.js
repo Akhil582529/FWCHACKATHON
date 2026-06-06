@@ -21,7 +21,7 @@ const generate = async (prompt) => {
 export const rankCandidates = async (req, res) => {
   try {
     const job = await Job.findById(req.params.jobId)
-      .populate("applicants.candidate", "fullName email skills resumeUrl");
+      .populate("applicants.candidate", "fullName email skills resumeUrl resumeText");
 
     if (!job) return res.status(404).json({ success: false, message: "Job not found" });
     if (job.postedBy.toString() !== req.user._id.toString())
@@ -36,6 +36,7 @@ export const rankCandidates = async (req, res) => {
         name: a.candidate.fullName || a.candidate.email,
         email: a.candidate.email,
         skills: a.candidate.skills?.join(", ") || "Not specified",
+        resumeText: a.candidate.resumeText || null,
         id: a.candidate._id.toString(),
       }));
 
@@ -48,7 +49,9 @@ REQUIRED SKILLS: ${job.skills.join(", ")}
 REQUIREMENTS: ${job.requirements.join(", ")}
 
 CANDIDATES:
-${candidateList.map((c) => `${c.index + 1}. Name: ${c.name} | Skills: ${c.skills}`).join("\n")}
+${candidateList.map((c) => `${c.index + 1}. Name: ${c.name}
+   Skills: ${c.skills}
+   Resume: ${c.resumeText ? c.resumeText.slice(0, 3000) : "Not provided — evaluate on skills only"}`).join("\n\n")}
 
 Return ONLY a valid JSON array (no markdown, no explanation) in this exact format:
 [
@@ -168,7 +171,7 @@ Review this candidate's profile and give actionable advice.
 
 Name: ${user.fullName || "Not set"}
 Skills: ${user.skills?.join(", ") || "None listed"}
-Resume: ${user.resumeUrl ? "Uploaded" : "Not uploaded"}
+Resume: ${user.resumeText ? user.resumeText.slice(0, 3000) : "Not provided — assess based on skills only"}
 
 Return ONLY valid JSON (no markdown):
 {

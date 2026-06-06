@@ -305,13 +305,14 @@ function ProfileTab({ user, onUpdate }) {
   const [fullName, setFullName] = useState(user?.fullName || "");
   const [skillInput, setSkillInput] = useState(user?.skills?.join(", ") || "");
   const [resumeUrl, setResumeUrl] = useState(user?.resumeUrl || "");
+  const [resumeText, setResumeText] = useState(user?.resumeText || "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   const save = async () => {
     setSaving(true);
     try {
-      const d = await candidateAPI.updateProfile({ fullName, skills: skillInput, resumeUrl });
+      const d = await candidateAPI.updateProfile({ fullName, skills: skillInput, resumeUrl, resumeText });
       onUpdate(d.user);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -335,6 +336,16 @@ function ProfileTab({ user, onUpdate }) {
               <span key={s} className={styles.skillTag}>{s}</span>
             ))}
           </div>
+        </div>
+        <div className={styles.formGroup}>
+          <label className={styles.label}>Resume / Profile Summary</label>
+          <textarea
+            className={styles.textarea}
+            rows={6}
+            placeholder="Paste your resume, LinkedIn summary, or key experience here. This is what AI uses to rank you for jobs."
+            value={resumeText}
+            onChange={(e) => setResumeText(e.target.value)}
+          />
         </div>
         <div className={styles.formGroup}>
           <label className={styles.label}>Resume URL</label>
