@@ -40,17 +40,20 @@ export const candidateAPI = {
 };
 
 export const interviewAPI = {
-  schedule:     (p)          => request("/interviews",              { method: "POST",  body: JSON.stringify(p) }),
-  getHR:        ()           => request("/interviews/hr"),
-  getCandidate: ()           => request("/interviews/candidate"),
-  updateStatus: (id, status) => request(`/interviews/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  schedule:          (p)          => request("/interviews",                    { method: "POST",  body: JSON.stringify(p) }),
+  getHR:             ()           => request("/interviews/hr"),
+  getCandidate:      ()           => request("/interviews/candidate"),
+  updateStatus:      (id, status) => request(`/interviews/${id}/status`,       { method: "PATCH", body: JSON.stringify({ status }) }),
+  submitAnswers:     (id, answers) => request(`/interviews/${id}/answers`,     { method: "PATCH", body: JSON.stringify({ answers }) }),
 };
 
 export const aiAPI = {
-  rankCandidates:        (jobId) => request(`/ai/rank-candidates/${jobId}`, { method: "POST" }),
-  startMockInterview:    (p)     => request("/ai/mock-interview/start",      { method: "POST", body: JSON.stringify(p) }),
-  evaluateMockInterview: (p)     => request("/ai/mock-interview/evaluate",   { method: "POST", body: JSON.stringify(p) }),
-  reviewProfile:         ()      => request("/ai/profile-review",            { method: "POST" }),
+  rankCandidates:             (jobId) => request(`/ai/rank-candidates/${jobId}`,   { method: "POST" }),
+  startMockInterview:         (p)     => request("/ai/mock-interview/start",        { method: "POST", body: JSON.stringify(p) }),
+  evaluateMockInterview:      (p)     => request("/ai/mock-interview/evaluate",     { method: "POST", body: JSON.stringify(p) }),
+  reviewProfile:              ()      => request("/ai/profile-review",              { method: "POST" }),
+  generateInterviewQuestions: (id)    => request(`/ai/interview-questions/${id}`,   { method: "POST" }),
+  evaluateInterview:          (id)    => request(`/ai/evaluate-interview/${id}`,    { method: "POST" }),
 };
 
 export const adminAPI = {
