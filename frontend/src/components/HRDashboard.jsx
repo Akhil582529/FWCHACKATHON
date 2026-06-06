@@ -299,6 +299,9 @@ function Interviews({ interviews, jobs, onScheduled, onRefresh }) {
                       {iv.technicalScore     != null && <span className={styles.itemSub}>Tech <strong style={{ color: "#e2e8f0" }}>{iv.technicalScore}/100</strong></span>}
                       {iv.communicationScore != null && <span className={styles.itemSub}>Comm <strong style={{ color: "#e2e8f0" }}>{iv.communicationScore}/100</strong></span>}
                       {iv.confidenceScore    != null && <span className={styles.itemSub}>Conf <strong style={{ color: "#e2e8f0" }}>{iv.confidenceScore}/100</strong></span>}
+                      {iv.candidate?.roleReadinessScore != null && (
+                        <span className={styles.itemSub}>🎯 Readiness <strong style={{ color: "#22c55e" }}>{iv.candidate.roleReadinessScore}/100</strong></span>
+                      )}
                       {iv.recommendation && (
                         <span className={styles.badge} style={{ color: recColor[iv.recommendation] || "#e2e8f0" }}>
                           {iv.recommendation.toUpperCase()}

@@ -237,8 +237,8 @@ Mix: 2 technical, 1 problem-solving, 1 behavioral, 1 situational.
 export const evaluateInterview = async (req, res) => {
   try {
     const interview = await Interview.findById(req.params.id)
-      .populate("candidate", "fullName email resumeText")
-      .populate("job", "title description skills requirements");
+      .populate("candidate", "fullName email resumeText skills")
+      .populate("job", "title company description skills requirements");
 
     if (!interview) return res.status(404).json({ success: false, message: "Interview not found" });
     if (interview.scheduledBy.toString() !== req.user._id.toString())
@@ -293,7 +293,92 @@ Return ONLY valid JSON (no markdown):
     interview.recommendation     = evaluation.recommendation;
     await interview.save();
 
-    res.json({ success: true, evaluation });
+    // Auto-generate onboarding plan for hire or consider recommendations
+    let onboardingGenerated = false;
+    if (["hire", "consider"].includes(evaluation.recommendation)) {
+      try {
+        // Fetch ranking signal from Job applicants array
+        const jobDoc = await Job.findOne(
+          { _id: interview.job._id, "applicants.candidate": interview.candidate._id },
+          { "applicants.$": 1 }
+        );
+        const aiScore   = jobDoc?.applicants?.[0]?.aiScore   ?? null;
+        const aiSummary = jobDoc?.applicants?.[0]?.aiSummary ?? null;
+
+        const onboardingPrompt = `
+You are an expert HR onboarding specialist. A candidate has been selected for a role.
+Using the provided evaluation signals, generate a personalized onboarding plan and compute their Role Readiness Score.
+
+CANDIDATE: ${candidate.fullName || "Candidate"}
+SKILLS: ${candidate.skills?.join(", ") || "Not listed"}
+RESUME: ${candidate.resumeText ? candidate.resumeText.slice(0, 1500) : "Not provided"}
+
+POSITION: ${job.title}
+COMPANY: ${job.company || "The company"}
+REQUIRED SKILLS: ${job.skills?.join(", ") || "Not specified"}
+REQUIREMENTS: ${job.requirements?.join(", ") || "Not specified"}
+JOB DESCRIPTION: ${job.description}
+
+AI RANKING (candidate score vs all other applicants):
+  Peer Score: ${aiScore ?? "Not ranked"}
+  Ranking Summary: ${aiSummary ?? "N/A"}
+
+INTERVIEW EVALUATION (already completed — use these scores directly, do not recompute):
+  Overall Score:       ${evaluation.overallScore}/100
+  Technical Score:     ${evaluation.technicalScore}/100
+  Communication Score: ${evaluation.communicationScore}/100
+  Confidence Score:    ${evaluation.confidenceScore}/100
+  Evaluator Notes:     ${evaluation.summary}
+  Recommendation:      ${evaluation.recommendation.toUpperCase()}
+
+Compute roleReadiness (0-100) by synthesizing resume-to-job skills fit, ranking score vs peers, and interview scores.
+
+Return ONLY valid JSON (no markdown):
+{
+  "roleReadiness": <0-100>,
+  "welcomeMessage": "<2-sentence personalized welcome referencing their specific role>",
+  "day1Checklist": ["item1", "item2", "item3", "item4", "item5"],
+  "week1Goals": ["goal1", "goal2", "goal3"],
+  "day30Goals": ["goal1", "goal2", "goal3"],
+  "day60Goals": ["goal1", "goal2", "goal3"],
+  "day90Goals": ["goal1", "goal2", "goal3"],
+  "skillsToLearn": [
+    { "skill": "<skill name>", "resource": "<url or resource name>", "priority": "<high|medium|low>" }
+  ],
+  "strengths": ["strength1", "strength2"],
+  "areasToGrow": ["area1", "area2"],
+  "teamIntegrationTips": ["tip1", "tip2", "tip3"]
+}
+`;
+
+        const onboardingResult = await model.generateContent(onboardingPrompt);
+        const onboardingText   = onboardingResult.response.text().replace(/```json|```/g, "").trim();
+        const plan             = JSON.parse(onboardingText);
+
+        // Attach explainability metadata — built from known signals, not from Gemini
+        plan.onboardingMeta = {
+          rankingScore:      aiScore,
+          interviewScore:    evaluation.overallScore,
+          technicalScore:    evaluation.technicalScore,
+          communicationScore: evaluation.communicationScore,
+          confidenceScore:   evaluation.confidenceScore,
+          recommendation:    evaluation.recommendation,
+        };
+
+        await User.findByIdAndUpdate(interview.candidate._id, {
+          onboardingPlan:        plan,
+          onboardingJobId:       interview.job._id,
+          onboardingGeneratedAt: new Date(),
+          roleReadinessScore:    plan.roleReadiness,
+        });
+
+        onboardingGenerated = true;
+      } catch (onboardingErr) {
+        console.error("Onboarding generation error (non-fatal):", onboardingErr.message);
+      }
+    }
+
+    res.json({ success: true, evaluation, onboardingGenerated });
   } catch (err) {
     console.error("Interview evaluation error:", err);
     res.status(500).json({ success: false, message: "Evaluation failed: " + err.message });
