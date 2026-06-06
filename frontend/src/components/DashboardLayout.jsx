@@ -17,7 +17,8 @@ const navItems = {
     { id: "my-jobs",     icon: "💼", label: "My Jobs"         },
     { id: "candidates",  icon: "👥", label: "Candidates"      },
     { id: "interviews",  icon: "📅", label: "Interviews"      },
-    { id: "ai-ranking",  icon: "🤖", label: "AI Ranking"      },
+    { id: "ai-ranking",      icon: "🤖", label: "AI Ranking"       },
+    { id: "bulk-screening",  icon: "🧬", label: "Workforce Intel"  },
   ],
   admin: [
     { id: "overview",   icon: "⚡", label: "Overview"         },
