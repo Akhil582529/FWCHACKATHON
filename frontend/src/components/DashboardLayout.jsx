@@ -20,10 +20,11 @@ const navItems = {
     { id: "ai-ranking",  icon: "🤖", label: "AI Ranking"      },
   ],
   admin: [
-    { id: "overview",   icon: "⚡", label: "Overview"     },
-    { id: "users",      icon: "👥", label: "Manage Users" },
-    { id: "jobs",       icon: "💼", label: "All Jobs"     },
-    { id: "analytics",  icon: "📊", label: "Analytics"   },
+    { id: "overview",   icon: "⚡", label: "Overview"         },
+    { id: "users",      icon: "👥", label: "Manage Users"     },
+    { id: "jobs",       icon: "💼", label: "All Jobs"         },
+    { id: "analytics",  icon: "📊", label: "Analytics"       },
+    { id: "workforce",  icon: "🧠", label: "Workforce Intel"  },
   ],
 };
 

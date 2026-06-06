@@ -483,6 +483,246 @@ function Analytics({ analytics }) {
   );
 }
 
+// ── Workforce Intelligence Tab ─────────────────────────────────────────────────
+function WorkforceIntelligence() {
+  const [data, setData]                     = useState(null);
+  const [loading, setLoading]               = useState(true);
+  const [report, setReport]                 = useState(null);
+  const [reportLoading, setReportLoading]   = useState(false);
+
+  useEffect(() => {
+    adminAPI.getWorkforce()
+      .then(d => setData(d.workforce))
+      .catch(e => console.error("Workforce error:", e))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const generateReport = async () => {
+    setReportLoading(true);
+    try {
+      const d = await adminAPI.getAIInsights(data);
+      setReport(d.report);
+    } catch (e) { alert(e.message); }
+    finally { setReportLoading(false); }
+  };
+
+  if (loading) return <div className={styles.section}><div className={styles.loading}>Loading workforce intelligence...</div></div>;
+  if (!data)   return <div className={styles.section}><p className={styles.empty}>No workforce data available yet.</p></div>;
+
+  const { healthScore, healthLabel, kpi, funnel, quality, skillGaps, topCandidate } = data;
+  const healthColor = healthScore >= 90 ? "#22c55e" : healthScore >= 75 ? "#3b82f6" : healthScore >= 60 ? "#f59e0b" : "#ef4444";
+  const maxFunnel   = funnel.applied || 1;
+
+  const funnelSteps = [
+    { label: "Applications",     value: funnel.applied         },
+    { label: "Reviewed",         value: funnel.reviewed        },
+    { label: "Shortlisted",      value: funnel.shortlisted     },
+    { label: "AI Ranked",        value: funnel.aiRanked        },
+    { label: "Interviewed",      value: funnel.interviewed     },
+    { label: "AI Evaluated",     value: funnel.evaluated       },
+    { label: "Hire Recommended", value: funnel.hireRecommended },
+  ];
+
+  const qualityMetrics = [
+    { label: "Interview Score",     value: quality.avgInterviewScore     },
+    { label: "Technical Score",     value: quality.avgTechnicalScore     },
+    { label: "Communication Score", value: quality.avgCommunicationScore },
+    { label: "Confidence Score",    value: quality.avgConfidenceScore    },
+    { label: "Role Readiness",      value: quality.avgRoleReadiness      },
+    { label: "AI Ranking Score",    value: quality.avgAIScore            },
+  ];
+
+  const kpiCards = [
+    { icon: "🏆", label: "Ready To Hire",  value: kpi.readyToHire,       color: "#22c55e",             sub: "score ≥ 80"   },
+    { icon: "🎯", label: "Hire Rate",      value: `${kpi.hireRate}%`,    color: "#3b82f6",             sub: "of evaluated" },
+    { icon: "🤖", label: "Avg AI Score",   value: kpi.avgAIScore,        color: "var(--admin-accent)", sub: "ranking"      },
+    { icon: "🎤", label: "Avg Interview",  value: kpi.avgInterviewScore, color: "#a78bfa",             sub: "score"        },
+    { icon: "📈", label: "Role Readiness", value: kpi.avgRoleReadiness,  color: "#f59e0b",             sub: "avg score"    },
+    { icon: "📊", label: "Eval Coverage",  value: `${kpi.evalCoverage}%`,color: "#2ec4b6",             sub: "interviewed"  },
+  ];
+
+  const recColor = { hire: "#22c55e", consider: "#f59e0b", pass: "#6b7280" };
+
+  return (
+    <div className={styles.section}>
+
+      {/* ── Health Score Hero ── */}
+      <div className={styles.card}>
+        <div style={{ textAlign: "center", padding: "16px 0 12px" }}>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".1em", marginBottom: 8 }}>🧠 AI Hiring Health Score</div>
+          <div style={{ fontSize: 72, fontWeight: 800, fontFamily: "'Syne',sans-serif", color: healthColor, lineHeight: 1 }}>{healthScore}</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>/ 100</div>
+          <div style={{ display: "inline-block", marginTop: 10, padding: "4px 18px", borderRadius: 20, fontSize: 13, fontWeight: 700, letterSpacing: ".08em", background: `${healthColor}22`, color: healthColor }}>
+            {healthLabel.toUpperCase()}
+          </div>
+          <div style={{ maxWidth: 320, margin: "14px auto 0", height: 8, background: "rgba(255,255,255,.06)", borderRadius: 4, overflow: "hidden" }}>
+            <div style={{ width: `${healthScore}%`, height: "100%", background: healthColor, borderRadius: 4, transition: "width .6s ease" }} />
+          </div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8 }}>
+            30% AI Ranking · 30% Interview Score · 20% Role Readiness · 20% Hire Rate
+          </div>
+        </div>
+      </div>
+
+      {/* ── KPI Cards ── */}
+      <div className={styles.kpiGrid}>
+        {kpiCards.map(c => (
+          <StatCard key={c.label} icon={c.icon} label={c.label} value={c.value} color={c.color} sub={c.sub} />
+        ))}
+      </div>
+
+      {/* ── Top Candidate Ready Now ── */}
+      {topCandidate && (
+        <div className={styles.topCandidateCard}>
+          <div className={styles.cardTitle}>🏆 Top Candidate Ready Now</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginTop: 12 }}>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "'Syne',sans-serif", color: "var(--text-primary)" }}>{topCandidate.fullName}</div>
+              <div style={{ display: "flex", gap: 12, marginTop: 8, flexWrap: "wrap", alignItems: "center" }}>
+                {topCandidate.aiScore != null && (
+                  <span className={styles.itemSub}>AI Rank Score: <strong style={{ color: "#e2e8f0" }}>{topCandidate.aiScore}/100</strong></span>
+                )}
+                {topCandidate.recommendation && (
+                  <span className={styles.statusBadge} style={{ background: `${recColor[topCandidate.recommendation] || "#6b7280"}22`, color: recColor[topCandidate.recommendation] || "#6b7280", border: `1px solid ${recColor[topCandidate.recommendation] || "#6b7280"}44` }}>
+                    {topCandidate.recommendation.toUpperCase()}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 42, fontWeight: 800, fontFamily: "'Syne',sans-serif", color: "#22c55e", lineHeight: 1 }}>{topCandidate.roleReadinessScore}</div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".05em", marginTop: 4 }}>Role Readiness</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Hiring Funnel + Skill Gap ── */}
+      <div className={styles.twoCol}>
+        <div className={styles.card}>
+          <div className={styles.cardTitle}>🔽 Hiring Funnel</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
+            {funnelSteps.map(({ label, value }) => (
+              <div key={label}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+                  <span style={{ color: "var(--text-muted)" }}>{label}</span>
+                  <span style={{ fontWeight: 700, fontFamily: "'Syne',sans-serif", color: "var(--text-primary)" }}>
+                    {value} <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: 11 }}>({Math.round((value / maxFunnel) * 100)}%)</span>
+                  </span>
+                </div>
+                <div className={styles.barTrack}>
+                  <div className={styles.barFill} style={{ width: `${(value / maxFunnel) * 100}%`, background: "var(--admin-accent)" }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className={styles.card}>
+          <div className={styles.cardTitle}>⚡ Skill Gap Intelligence</div>
+          {skillGaps.length === 0 ? (
+            <p className={styles.empty}>No skill data available yet.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+              {skillGaps.slice(0, 7).map(({ skill, demand, supply, gap }) => (
+                <div key={skill}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{skill}</span>
+                    {gap > 0
+                      ? <span style={{ fontSize: 11, color: "#ef4444", fontWeight: 600 }}>GAP {gap}</span>
+                      : <span style={{ fontSize: 11, color: "#22c55e", fontWeight: 600 }}>OK</span>
+                    }
+                  </div>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)", minWidth: 62 }}>Demand {demand}</span>
+                    <div className={styles.barTrack} style={{ flex: 1 }}>
+                      <div className={styles.barFill} style={{ width: `${Math.min((demand / 10) * 100, 100)}%`, background: "#f59e0b" }} />
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 3 }}>
+                    <span style={{ fontSize: 11, color: "var(--text-muted)", minWidth: 62 }}>Supply {supply}</span>
+                    <div className={styles.barTrack} style={{ flex: 1 }}>
+                      <div className={styles.barFill} style={{ width: `${Math.min((supply / 10) * 100, 100)}%`, background: supply >= demand ? "#22c55e" : "#ef4444" }} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Interview Quality Breakdown ── */}
+      <div className={styles.card}>
+        <div className={styles.cardTitle}>📊 Interview Quality Breakdown</div>
+        <div className={styles.breakdown} style={{ marginTop: 12 }}>
+          {qualityMetrics.map(({ label, value }) => (
+            <div key={label} className={styles.breakdownRow}>
+              <div className={styles.breakdownLabel}>
+                <span>{label}</span>
+                <span className={styles.breakdownCount} style={{ color: value >= 75 ? "#22c55e" : value >= 60 ? "#f59e0b" : "#ef4444" }}>{value}</span>
+              </div>
+              <div className={styles.barTrack}>
+                <div className={styles.barFill} style={{ width: `${value}%`, background: value >= 75 ? "#22c55e" : value >= 60 ? "#f59e0b" : "#ef4444" }} />
+              </div>
+              <span className={styles.breakdownPct}>{value}/100</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── AI Executive Report ── */}
+      <div className={styles.card}>
+        <div className={styles.cardHeader}>
+          <h3 className={styles.cardTitle}>✨ AI Executive Report</h3>
+          <button className={styles.reportBtn} onClick={generateReport} disabled={reportLoading}>
+            {reportLoading ? "Generating..." : "✨ Generate Report"}
+          </button>
+        </div>
+        {!report ? (
+          <p className={styles.empty} style={{ marginTop: 12 }}>Click "Generate Report" to get an AI-powered executive summary of your workforce data.</p>
+        ) : (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <span style={{ fontSize: 13, color: "var(--text-muted)" }}>Overall Health:</span>
+              <span style={{ fontWeight: 700, fontSize: 13, color: healthColor }}>{report.overallHealth?.toUpperCase()}</span>
+            </div>
+            <p style={{ fontSize: 14, color: "var(--text-primary)", lineHeight: 1.7, marginBottom: 20, padding: "12px 16px", background: "rgba(255,255,255,.03)", borderRadius: 8, border: "1px solid var(--border)" }}>
+              {report.summary}
+            </p>
+            <div className={styles.twoCol} style={{ gap: 16 }}>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#22c55e", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 10 }}>✅ Strengths</div>
+                {report.strengths?.map((s, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--border)", fontSize: 13, color: "var(--text-primary)" }}>
+                    <span style={{ color: "#22c55e", flexShrink: 0 }}>•</span><span>{s}</span>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#ef4444", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 10 }}>⚠️ Risks</div>
+                {report.risks?.map((r, i) => (
+                  <div key={i} style={{ display: "flex", gap: 8, padding: "6px 0", borderBottom: "1px solid var(--border)", fontSize: 13, color: "var(--text-primary)" }}>
+                    <span style={{ color: "#ef4444", flexShrink: 0 }}>•</span><span>{r}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#3b82f6", textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 10 }}>💡 Recommendations</div>
+              {report.recommendations?.map((rec, i) => (
+                <div key={i} style={{ display: "flex", gap: 8, padding: "7px 0", borderBottom: "1px solid var(--border)", fontSize: 13, color: "var(--text-primary)" }}>
+                  <span style={{ color: "#3b82f6", fontWeight: 700, flexShrink: 0 }}>{i + 1}.</span><span>{rec}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Admin Dashboard ───────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const [activeTab, setActiveTab]   = useState("overview");
@@ -496,10 +736,11 @@ export default function AdminDashboard() {
 
   return (
     <DashboardLayout activeTab={activeTab} onTabChange={setActiveTab}>
-      {activeTab === "overview"  && <Overview  analytics={analytics} onTabChange={setActiveTab} />}
-      {activeTab === "users"     && <ManageUsers />}
-      {activeTab === "jobs"      && <AllJobs />}
-      {activeTab === "analytics" && <Analytics analytics={analytics} />}
+      {activeTab === "overview"   && <Overview  analytics={analytics} onTabChange={setActiveTab} />}
+      {activeTab === "users"      && <ManageUsers />}
+      {activeTab === "jobs"       && <AllJobs />}
+      {activeTab === "analytics"  && <Analytics analytics={analytics} />}
+      {activeTab === "workforce"  && <WorkforceIntelligence />}
     </DashboardLayout>
   );
 }
