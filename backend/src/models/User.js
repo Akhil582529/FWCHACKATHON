@@ -68,6 +68,10 @@ const userSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    resumeText: {
+      type: String,
+      default: null,
+    },
 
     // ── HR-specific ───────────────────────────
     companyId: {
@@ -137,6 +141,7 @@ userSchema.virtual("profile").get(function () {
       fullName: this.fullName,
       skills: this.skills,
       resumeUrl: this.resumeUrl,
+      resumeText: this.resumeText,
     }),
     ...(this.role === "hr" && {
       fullName: this.fullName,
