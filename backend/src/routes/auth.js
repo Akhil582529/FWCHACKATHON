@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { register, login, getMe, logout } from "../controllers/authController.js";
+import { register, login, getMe, logout } from "../controllers/auth.js";
 import { protect } from "../middleware/auth.js";
 import { registerRules, loginRules, validate } from "../middleware/validate.js";
 import rateLimit from "express-rate-limit";
