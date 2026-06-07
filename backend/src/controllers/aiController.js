@@ -17,7 +17,88 @@ const generate = async (prompt) => {
   return res.choices[0].message.content;
 };
 
-// POST /api/ai/rank-candidates/:jobId
+// Local scoring engine — no external API calls
+// Skill Match: 40pts | Requirement Match: 30pts | Resume Completeness: 15pts | Keyword Relevance: 15pts
+const scoreCandidate = (candidate, job) => {
+  const jobSkills       = (job.skills        || []).map((s) => s.toLowerCase().trim());
+  const jobRequirements =  job.requirements  || [];
+  const jobDescription  = (job.description  || "").toLowerCase();
+  const candidateSkills = (candidate.skills  || []).map((s) => s.toLowerCase().trim());
+  const resumeText      = (candidate.resumeText || "").toLowerCase();
+
+  // 1. Skill Match (40 pts)
+  const matchedSkills = jobSkills.filter((s) => candidateSkills.includes(s));
+  const missingSkills = jobSkills.filter((s) => !candidateSkills.includes(s));
+  const skillScore    = jobSkills.length > 0
+    ? Math.round((matchedSkills.length / jobSkills.length) * 40)
+    : 20;
+
+  // 2. Requirement Match (30 pts) — keyword presence in resumeText
+  const matchedReqs = jobRequirements.filter((req) => {
+    const words = req.toLowerCase().split(/\W+/).filter((w) => w.length > 3);
+    return words.length > 0 && words.some((w) => resumeText.includes(w));
+  });
+  const reqScore = jobRequirements.length > 0
+    ? Math.round((matchedReqs.length / jobRequirements.length) * 30)
+    : 15;
+
+  // 3. Resume Completeness (15 pts)
+  let completenessScore = 0;
+  if (resumeText.length > 200)     completenessScore += 10;
+  else if (resumeText.length > 50) completenessScore += 5;
+  if (candidate.resumeUrl)         completenessScore += 3;
+  if (candidate.fullName)          completenessScore += 2;
+
+  // 4. Keyword Relevance (15 pts) — job description terms found in resume
+  const STOPWORDS = new Set([
+    "with", "that", "this", "have", "will", "from", "they", "been", "their",
+    "would", "about", "into", "through", "during", "before", "after", "above",
+    "below", "between", "each", "other", "should", "must", "able", "work",
+    "team", "experience", "candidate", "required", "skills", "knowledge",
+  ]);
+  const jobKeywords = [
+    ...new Set(jobDescription.split(/\W+/).filter((w) => w.length > 4 && !STOPWORDS.has(w))),
+  ];
+  const matchedKeywords = jobKeywords.filter((kw) => resumeText.includes(kw));
+  const keywordScore    = jobKeywords.length > 0
+    ? Math.round((matchedKeywords.length / jobKeywords.length) * 15)
+    : 7;
+
+  const score = Math.min(100, skillScore + reqScore + completenessScore + keywordScore);
+
+  // Strengths — matched skills + met requirements
+  const strengths = [
+    ...matchedSkills.slice(0, 2).map((s) => `Proficient in ${s}`),
+    ...(matchedReqs.length > 0
+      ? [`Meets ${matchedReqs.length} of ${jobRequirements.length} listed requirements`]
+      : []),
+  ];
+  if (strengths.length === 0) strengths.push("Profile submitted for review");
+
+  // Gaps — missing skills + unmet requirements
+  const gaps = [
+    ...missingSkills.slice(0, 2).map((s) => `Missing skill: ${s}`),
+    ...(matchedReqs.length < jobRequirements.length
+      ? [`${jobRequirements.length - matchedReqs.length} requirement(s) not evidenced in resume`]
+      : []),
+  ];
+  if (gaps.length === 0) gaps.push("No significant gaps identified");
+
+  // Recommendation label
+  const recommendation =
+    score >= 85 ? "Strong Hire" :
+    score >= 70 ? "Hire"        :
+    score >= 50 ? "Consider"    : "Reject";
+
+  const summary =
+    `Matched ${matchedSkills.length}/${jobSkills.length} required skills and ` +
+    `${matchedReqs.length}/${jobRequirements.length} requirements. ` +
+    `${recommendation} — composite score: ${score}/100.`;
+
+  return { score, summary, strengths, gaps, recommendation };
+};
+
+// POST /api/ai/rank-candidates/:jobId — HR: rank all applicants for a job
 export const rankCandidates = async (req, res) => {
   try {
     const job = await Job.findById(req.params.jobId)
@@ -29,55 +110,27 @@ export const rankCandidates = async (req, res) => {
     if (job.applicants.length === 0)
       return res.status(400).json({ success: false, message: "No applicants yet" });
 
-    const candidateList = job.applicants
+    const rankings = job.applicants
       .filter((a) => a.candidate)
-      .map((a, i) => ({
-        index: i,
-        name: a.candidate.fullName || a.candidate.email,
-        email: a.candidate.email,
-        skills: a.candidate.skills?.join(", ") || "Not specified",
-        resumeText: a.candidate.resumeText || null,
-        id: a.candidate._id.toString(),
-      }));
-
-    const prompt = `
-You are a senior technical recruiter AI. Analyze these candidates for the job below and rank them.
-
-JOB TITLE: ${job.title}
-JOB DESCRIPTION: ${job.description}
-REQUIRED SKILLS: ${job.skills.join(", ")}
-REQUIREMENTS: ${job.requirements.join(", ")}
-
-CANDIDATES:
-${candidateList.map((c) => `${c.index + 1}. Name: ${c.name}
-   Skills: ${c.skills}
-   Resume: ${c.resumeText ? c.resumeText.slice(0, 3000) : "Not provided — evaluate on skills only"}`).join("\n\n")}
-
-Return ONLY a valid JSON array (no markdown, no explanation) in this exact format:
-[
-  {
-    "id": "<candidate_id>",
-    "name": "<name>",
-    "score": <0-100>,
-    "summary": "<2 sentence assessment>",
-    "strengths": ["strength1", "strength2"],
-    "gaps": ["gap1", "gap2"]
-  }
-]
-
-Use the index order to map back to ids: ${candidateList.map((c) => `index ${c.index} = id ${c.id}`).join(", ")}
-Sort by score descending.
-`;
-
-    const text = (await generate(prompt)).replace(/```json|```/g, "").trim();
-    const rankings = JSON.parse(text);
+      .map((a) => {
+        const { score, summary, strengths, gaps } = scoreCandidate(a.candidate, job);
+        return {
+          id:       a.candidate._id.toString(),
+          name:     a.candidate.fullName || a.candidate.email,
+          score,
+          summary,
+          strengths,
+          gaps,
+        };
+      })
+      .sort((a, b) => b.score - a.score);
 
     for (const rank of rankings) {
       const applicant = job.applicants.find(
         (a) => a.candidate._id.toString() === rank.id
       );
       if (applicant) {
-        applicant.aiScore = rank.score;
+        applicant.aiScore   = rank.score;
         applicant.aiSummary = rank.summary;
         if (rank.score >= 70) applicant.status = "shortlisted";
       }
@@ -86,8 +139,8 @@ Sort by score descending.
 
     res.json({ success: true, rankings });
   } catch (err) {
-    console.error("Groq rank error:", err);
-    res.status(500).json({ success: false, message: "AI ranking failed: " + err.message });
+    console.error("Rank candidates error:", err);
+    res.status(500).json({ success: false, message: "Ranking failed: " + err.message });
   }
 };
 
@@ -127,7 +180,9 @@ export const evaluateMockInterview = async (req, res) => {
     if (!questions?.length || !answers?.length)
       return res.status(400).json({ success: false, message: "Questions and answers required" });
 
-    const qa = questions.map((q, i) => `Q${i + 1}: ${q}\nA${i + 1}: ${answers[i] || "No answer"}`).join("\n\n");
+    const qa = questions
+      .map((q, i) => `Q${i + 1}: ${q}\nA${i + 1}: ${answers[i] || "No answer"}`)
+      .join("\n\n");
 
     const prompt = `
 You are a senior technical interviewer evaluating a mock interview.
@@ -202,11 +257,10 @@ export const generateInterviewQuestions = async (req, res) => {
     if (interview.candidate.toString() !== req.user._id.toString())
       return res.status(403).json({ success: false, message: "Not your interview" });
 
-    // Return existing questions without calling Gemini again
+    // Return existing questions without calling the API again
     if (interview.mockQuestions.length > 0)
       return res.json({ success: true, questions: interview.mockQuestions });
 
-    const model = getGemini();
     const prompt = `
 You are a technical interviewer. Generate 5 interview questions for this role.
 
@@ -220,8 +274,7 @@ Return ONLY a valid JSON array of 5 strings (no markdown, no numbering):
 Mix: 2 technical, 1 problem-solving, 1 behavioral, 1 situational.
 `;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().replace(/```json|```/g, "").trim();
+    const text = (await generate(prompt)).replace(/```json|```/g, "").trim();
     const questions = JSON.parse(text);
 
     interview.mockQuestions = questions;
@@ -244,14 +297,13 @@ export const evaluateInterview = async (req, res) => {
     if (interview.scheduledBy.toString() !== req.user._id.toString())
       return res.status(403).json({ success: false, message: "Not your interview" });
 
-    const model = getGemini();
     const { candidate, job } = interview;
 
     const hasAnswers = interview.mockAnswers.length > 0;
     const qa = hasAnswers
-      ? interview.mockQuestions.map((q, i) =>
-          `Q${i + 1}: ${q}\nA${i + 1}: ${interview.mockAnswers[i] || "No answer"}`
-        ).join("\n\n")
+      ? interview.mockQuestions
+          .map((q, i) => `Q${i + 1}: ${q}\nA${i + 1}: ${interview.mockAnswers[i] || "No answer"}`)
+          .join("\n\n")
       : null;
 
     const prompt = `
@@ -281,8 +333,7 @@ Return ONLY valid JSON (no markdown):
 }
 `;
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text().replace(/```json|```/g, "").trim();
+    const text = (await generate(prompt)).replace(/```json|```/g, "").trim();
     const evaluation = JSON.parse(text);
 
     interview.mockScore          = evaluation.overallScore;
@@ -351,18 +402,17 @@ Return ONLY valid JSON (no markdown):
 }
 `;
 
-        const onboardingResult = await model.generateContent(onboardingPrompt);
-        const onboardingText   = onboardingResult.response.text().replace(/```json|```/g, "").trim();
-        const plan             = JSON.parse(onboardingText);
+        const onboardingText = (await generate(onboardingPrompt)).replace(/```json|```/g, "").trim();
+        const plan           = JSON.parse(onboardingText);
 
-        // Attach explainability metadata — built from known signals, not from Gemini
+        // Attach explainability metadata — built from known signals, not from the LLM
         plan.onboardingMeta = {
-          rankingScore:      aiScore,
-          interviewScore:    evaluation.overallScore,
-          technicalScore:    evaluation.technicalScore,
+          rankingScore:       aiScore,
+          interviewScore:     evaluation.overallScore,
+          technicalScore:     evaluation.technicalScore,
           communicationScore: evaluation.communicationScore,
-          confidenceScore:   evaluation.confidenceScore,
-          recommendation:    evaluation.recommendation,
+          confidenceScore:    evaluation.confidenceScore,
+          recommendation:     evaluation.recommendation,
         };
 
         await User.findByIdAndUpdate(interview.candidate._id, {
